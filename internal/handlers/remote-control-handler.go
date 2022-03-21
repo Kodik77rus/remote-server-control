@@ -8,6 +8,7 @@ import (
 	"reflect"
 	runner "remote-server-control/internal/command-runner"
 	"runtime"
+	"strings"
 	// "log"
 )
 
@@ -22,6 +23,11 @@ type errExecCommandValidator struct {
 type unmarshalTypeError struct {
 	msg          string
 	unmarshalErr *json.UnmarshalTypeError
+}
+
+type linuxCommnd struct {
+	name  string
+	flags []string
 }
 
 type requestBody struct {
@@ -67,27 +73,14 @@ func ExecuteRemoteCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	runner := runner.New()
+	command := commandParser(&parsedbody)
+	runner := runner.New(command, _os)
 
-	runner.Run()
+	outPut := runner.Run()
 
-	sendRespone(w, http.StatusOK)
-}
+	fmt.Printf("%+v", *outPut.CommandOutPut)
 
-// func commandParser(body *requestBody) *runner.CommandRunner {
-// 	command := strings.Fields(body.Cmd)
-// 	return runner.New(command[0], command[0:], body.Stdin)
-// }
-
-func sendRespone(w http.ResponseWriter, httpStatusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(httpStatusCode)
-
-	resp := make(map[string]string)
-	resp["message"] = "sdafsdaf"
-
-	jsonResp, _ := json.Marshal(resp)
-	w.Write(jsonResp)
+	sendRespone(w, outPut, http.StatusOK)
 }
 
 func (e unmarshalTypeError) Error() string {
@@ -112,6 +105,46 @@ func bodyValidator(rb *requestBody) error {
 	}
 
 	return nil
+}
+
+func commandParser(b *requestBody) *runner.Command {
+	switch _os {
+	case "windows":
+		return &runner.Command{
+			Name: windowsCommandParser(b),
+		}
+	case "linux":
+		command := linuxCommandParser(b)
+		return &runner.Command{
+			Name:  command.name,
+			Flags: command.flags,
+		}
+	}
+	return nil
+}
+
+func linuxCommandParser(b *requestBody) *linuxCommnd {
+	flags := strings.Split(b.Cmd, " ")
+	return &linuxCommnd{
+		name:  flags[0],
+		flags: flags[1:],
+	}
+}
+
+func windowsCommandParser(b *requestBody) string {
+	return fmt.Sprintf("%s %s", b.Cmd, b.Stdin)
+}
+
+func sendRespone(w http.ResponseWriter, r *runner.CommandRunner, httpStatusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(httpStatusCode)
+
+	fmt.Printf("%+v", *r.CommandOutPut.StdOut)
+	resp := make(map[string]string)
+	resp["message"] = string(*r.CommandOutPut.StdOut)
+
+	jsonResp, _ := json.Marshal(resp)
+	w.Write(jsonResp)
 }
 
 func errorResponse(w http.ResponseWriter, err error, httpStatusCode int) {
