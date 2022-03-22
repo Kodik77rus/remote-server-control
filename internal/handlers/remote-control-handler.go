@@ -9,7 +9,6 @@ import (
 	runner "remote-server-control/internal/command-runner"
 	"runtime"
 	"strings"
-	// "log"
 )
 
 const _os = runtime.GOOS
@@ -25,11 +24,6 @@ type unmarshalTypeError struct {
 	unmarshalErr *json.UnmarshalTypeError
 }
 
-type linuxCommnd struct {
-	name  string
-	flags []string
-}
-
 type requestBody struct {
 	Cmd   string `json:"cmd"`
 	Os    string `json:"os"`
@@ -39,7 +33,6 @@ type requestBody struct {
 //excute os command
 func ExecuteRemoteCommand(w http.ResponseWriter, r *http.Request) {
 	// log.Printf("%+v", r) // logger create middleware
-
 	if r.Method != http.MethodPost {
 		errorResponse(w, http.ErrBodyNotAllowed, http.StatusMethodNotAllowed)
 		return
@@ -74,11 +67,16 @@ func ExecuteRemoteCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	command := commandParser(&parsedbody)
+
 	runner := runner.New(command, _os)
 
 	outPut := runner.Run()
+	if outPut.RunnerError != nil {
+		errorResponse(w, outPut.RunnerError, http.StatusBadRequest)
+		return
+	}
 
-	sendRespone(w, outPut, http.StatusOK)
+	sendRespone(w, outPut.CommandOutPut, http.StatusOK)
 }
 
 func (e unmarshalTypeError) Error() string {
@@ -94,7 +92,7 @@ func (x *requestBody) IsStructureEmpty() bool {
 }
 
 func bodyValidator(rb *requestBody) error {
-	if rb.IsStructureEmpty() {
+	if rb.IsStructureEmpty() { ///chande
 		return errEmptyBody
 	}
 
@@ -106,42 +104,23 @@ func bodyValidator(rb *requestBody) error {
 }
 
 func commandParser(b *requestBody) *runner.Command {
-	switch _os {
-	case "windows":
-		return &runner.Command{
-			Name: windowsCommandParser(b),
-		}
-	case "linux":
-		command := linuxCommandParser(b)
-		return &runner.Command{
-			Name:  command.name,
-			Flags: command.flags,
-		}
-	default:
-		return nil
+	cmd := strings.Split(b.Cmd, " ")
+
+	return &runner.Command{
+		Name:  cmd[0],
+		Args:  cmd[1:],
+		StdIn: b.Stdin,
 	}
 }
 
-func linuxCommandParser(b *requestBody) *linuxCommnd {
-	flags := strings.Split(b.Cmd, " ")
-	return &linuxCommnd{
-		name:  flags[0],
-		flags: flags[1:],
-	}
-}
-
-func windowsCommandParser(b *requestBody) string {
-	return fmt.Sprintf("%s %s", b.Cmd, b.Stdin)
-}
-
-func sendRespone(w http.ResponseWriter, r *runner.CommandRunner, httpStatusCode int) {
+func sendRespone(w http.ResponseWriter, r *runner.CommandOutPut, httpStatusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatusCode)
 
 	resp := make(map[string]map[string]string)
 	resp["message"] = map[string]string{
-		"stdout": (r.CommandOutPut.StdOut).String(),
-		"stderr": (r.CommandOutPut.StdErr).String(),
+		"stdout": (r.StdOut).String(),
+		"stderr": (r.StdErr).String(),
 	}
 
 	jsonResp, _ := json.Marshal(resp)

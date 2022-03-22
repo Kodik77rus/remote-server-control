@@ -3,9 +3,12 @@ package runner
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -13,14 +16,23 @@ type CommandRunner struct {
 	Command       *Command
 	CommandOutPut *CommandOutPut
 
-	osType string
-	// err    error
+	OsType      string
+	RunnerError error
 }
 
 type Command struct {
 	Name  string
-	Flags []string
+	Args  []string
 	StdIn string
+}
+
+type linuxCommnd struct {
+	name string
+	Args []string
+}
+
+type windowsCommnd struct {
+	stdIn string
 }
 
 type CommandOutPut struct {
@@ -28,29 +40,30 @@ type CommandOutPut struct {
 	StdErr *bytes.Buffer
 }
 
-func New(c *Command, os string) *CommandRunner {
+var errUnsupportedOsType = errors.New("unsupported os type")
 
+func New(c *Command, os string) *CommandRunner {
 	return &CommandRunner{
 		Command: c,
-		osType:  os,
+		OsType:  os,
 	}
 }
 
 func (c *CommandRunner) Run() *CommandRunner {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	switch c.osType {
+	switch c.OsType {
 	case "windows":
-		return c.runWindowsCommand(&ctx)
+		return c.runWindowsCommand(&ctx, newWindowsCommand(c.Command))
 	case "linux":
-		return c.runLinuxCommand(&ctx)
+		return c.runLinuxCommand(&ctx, newLinuxCommand(c.Command))
 	default:
-		return nil
+		return &CommandRunner{RunnerError: errUnsupportedOsType}
 	}
 }
 
-func (c *CommandRunner) runWindowsCommand(ctx *context.Context) *CommandRunner {
+func (c *CommandRunner) runWindowsCommand(ctx *context.Context, winCmd *windowsCommnd) *CommandRunner {
 	cmd := exec.CommandContext(*ctx, "powershell")
 
 	stdin, err := cmd.StdinPipe()
@@ -58,7 +71,7 @@ func (c *CommandRunner) runWindowsCommand(ctx *context.Context) *CommandRunner {
 
 	go func() {
 		defer stdin.Close()
-		_, err := io.WriteString(stdin, c.Command.Name)
+		_, err := io.WriteString(stdin, winCmd.stdIn)
 		fatalError(err)
 	}()
 
@@ -69,25 +82,35 @@ func (c *CommandRunner) runWindowsCommand(ctx *context.Context) *CommandRunner {
 	cmd.Stderr = &stdErr
 
 	if err := cmd.Run(); err != nil {
-		log.Print(err)
+		return &CommandRunner{RunnerError: err}
 	}
 
-	return c.setOutput(&stdOut, &stdErr)
+	c.setOutput(&stdOut, &stdErr)
+
+	return c
 }
 
-func (c *CommandRunner) runLinuxCommand(ctx *context.Context) *CommandRunner {
-
+func (c *CommandRunner) runLinuxCommand(ctx *context.Context, linCmd *linuxCommnd) *CommandRunner {
 	return nil
 }
 
-func (c *CommandRunner) setOutput(stdOut, Stderr *bytes.Buffer) *CommandRunner {
+func newWindowsCommand(c *Command) *windowsCommnd {
+	return &windowsCommnd{
+		stdIn: fmt.Sprintf("%v %v %v", c.Name, strings.Join(c.Args, ""), c.StdIn),
+	}
+}
+
+func newLinuxCommand(c *Command) *linuxCommnd {
+	return nil
+}
+
+func (c *CommandRunner) setOutput(stdOut, Stderr *bytes.Buffer) {
 	out := &CommandOutPut{
 		StdOut: stdOut,
 		StdErr: Stderr,
 	}
 
 	c.CommandOutPut = out
-	return c
 }
 
 func fatalError(e error) {
