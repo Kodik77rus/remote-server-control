@@ -34,7 +34,7 @@ func (s *Server) Start() error {
 	mux.Handle(_apiPrifix+"/remote-execution", http.HandlerFunc(handlers.ExecuteRemoteCommand))
 
 	wrappedMux := middleware.NewLogger(
-		middleware.NewResponseHeader(mux, "X-My-Header", "my header value"),
+		middleware.NewResponseHeader(mux, "Content-Type", "application/json"),
 	)
 
 	s.setMux(wrappedMux)
