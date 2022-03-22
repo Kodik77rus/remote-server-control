@@ -4,9 +4,12 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"remote-server-control/api"
+	"remote-server-control/internal/handlers"
+	"remote-server-control/internal/middleware"
 	"time"
 )
+
+const _apiPrifix = "/api/v1"
 
 type Server struct {
 	config *Config
@@ -26,6 +29,16 @@ func New(c *Config, ctx context.Context) *Server {
 
 //Start server
 func (s *Server) Start() error {
+	mux := http.NewServeMux()
+
+	mux.Handle(_apiPrifix+"/remote-execution", http.HandlerFunc(handlers.ExecuteRemoteCommand))
+
+	wrappedMux := middleware.NewLogger(
+		middleware.NewResponseHeader(mux, "X-My-Header", "my header value"),
+	)
+
+	s.setMux(wrappedMux)
+
 	log.Printf("About to listen on 8443. Go to https://127.0.0.1:8443/")
 
 	log.Fatalln(s.server.ListenAndServeTLS("", ""))
@@ -53,11 +66,14 @@ func (s *Server) Shutdown() {
 	}
 }
 
+func (s *Server) setMux(wrappredMux *middleware.Logger) {
+	s.server.Handler = wrappredMux
+}
+
 //Server configurator
 func configirateServer(c *Config) *http.Server {
 	return &http.Server{
 		Addr:         c.port,
-		Handler:      api.CreateRoutes(),
 		TLSConfig:    c.tlsCfg,
 		ReadTimeout:  time.Minute,
 		WriteTimeout: time.Minute,

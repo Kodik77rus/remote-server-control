@@ -122,7 +122,6 @@ func commandParser(b *requestBody) *runner.Command {
 
 //send http response
 func sendRespone(w http.ResponseWriter, r *runner.CommandOutPut, httpStatusCode int) {
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatusCode)
 
 	resp := make(map[string]map[string]string)
@@ -137,7 +136,6 @@ func sendRespone(w http.ResponseWriter, r *runner.CommandOutPut, httpStatusCode 
 
 //send http response with  error
 func errorResponse(w http.ResponseWriter, err error, httpStatusCode int) {
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatusCode)
 
 	resp := make(map[string]string)
