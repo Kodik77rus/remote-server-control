@@ -4,13 +4,14 @@ import (
 	"crypto/tls"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
 )
 
 const (
 	_certificate = "certificate.pem"
 	_publicKey   = "key.pem"
 	_port        = ":8443"
+	_certFolder  = "../configs/certificate/"
 )
 
 //Server config
@@ -37,9 +38,11 @@ func loadCertificate() (*tls.Config, error) {
 		return nil, err
 	}
 
+	p := filepath.FromSlash(_certFolder)
+
 	cert, err := tls.LoadX509KeyPair(
-		path.Join(dirname, "../../configs/certificate/", _certificate),
-		path.Join(dirname, "../../configs/certificate/", _publicKey),
+		filepath.Join(dirname, p, _certificate),
+		filepath.Join(dirname, p, _publicKey),
 	)
 
 	if err != nil {
