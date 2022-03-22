@@ -13,7 +13,10 @@ import (
 
 const _os = runtime.GOOS
 
-var errEmptyBody = errors.New("empty body")
+var (
+	errEmptyBody        = errors.New("empty body")
+	errEmptyCommandName = errors.New("empty command name")
+)
 
 type errExecCommandValidator struct {
 	osType string
@@ -94,6 +97,10 @@ func (x *requestBody) IsStructureEmpty() bool {
 func bodyValidator(rb *requestBody) error {
 	if rb.IsStructureEmpty() { ///chande
 		return errEmptyBody
+	}
+
+	if len(strings.TrimSpace(rb.Cmd)) == 0 {
+		return errEmptyCommandName
 	}
 
 	if ok := rb.Os == _os; !ok {
