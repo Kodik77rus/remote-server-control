@@ -12,6 +12,13 @@ import (
 	"time"
 )
 
+const _timeLimit = 5 * time.Second // max time for executing command
+
+var (
+	errUnsupportedOsType  = errors.New("unsupported os type")
+	errExecutionTimeLimit = errors.New("interrupted: execution time limit exceeded")
+)
+
 type CommandRunner struct {
 	Command       *Command
 	CommandOutPut *CommandOutPut
@@ -36,11 +43,13 @@ type windowsCommnd struct {
 }
 
 type CommandOutPut struct {
-	StdOut *bytes.Buffer
-	StdErr *bytes.Buffer
+	StdOut *string
+	StdErr *string
 }
 
-var errUnsupportedOsType = errors.New("unsupported os type")
+type FailedExecutionCommand struct {
+	err error
+}
 
 func New(c *Command, os string) *CommandRunner {
 	return &CommandRunner{
@@ -50,21 +59,22 @@ func New(c *Command, os string) *CommandRunner {
 }
 
 func (c *CommandRunner) Run() *CommandRunner {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	switch c.OsType {
 	case "windows":
-		return c.runWindowsCommand(&ctx, newWindowsCommand(c.Command))
+		return c.runWindowsCommand(newWindowsCommand(c.Command))
 	case "linux":
-		return c.runLinuxCommand(&ctx, newLinuxCommand(c.Command))
+		return c.runLinuxCommand(newLinuxCommand(c.Command))
 	default:
 		return &CommandRunner{RunnerError: errUnsupportedOsType}
 	}
 }
 
-func (c *CommandRunner) runWindowsCommand(ctx *context.Context, winCmd *windowsCommnd) *CommandRunner {
-	cmd := exec.CommandContext(*ctx, "powershell")
+func (c *CommandRunner) runWindowsCommand(winCmd *windowsCommnd) *CommandRunner {
+	ctx, cancel := context.WithTimeout(context.Background(), _timeLimit)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "powershell")
 
 	stdin, err := cmd.StdinPipe()
 	fatalError(err)
@@ -81,17 +91,39 @@ func (c *CommandRunner) runWindowsCommand(ctx *context.Context, winCmd *windowsC
 	cmd.Stdout = &stdOut
 	cmd.Stderr = &stdErr
 
+	log.Printf("Start execute command: %s", winCmd.stdIn)
+
 	if err := cmd.Run(); err != nil {
-		return &CommandRunner{RunnerError: err}
+		if ctx.Err() == context.DeadlineExceeded {
+			log.Print(errExecutionTimeLimit.Error())
+			return &CommandRunner{RunnerError: errExecutionTimeLimit}
+		}
+
+		log.Print(FailedExecutionCommand{err: err}.Error())
+		return &CommandRunner{RunnerError: FailedExecutionCommand{err: err}}
 	}
 
-	c.setOutput(&stdOut, &stdErr)
+	log.Printf("Done output:\n %s", stdOut.String())
+
+	cmdOutPut := NewCommandOutPut(&stdOut, &stdErr)
+
+	c.setOutput(cmdOutPut)
 
 	return c
 }
 
-func (c *CommandRunner) runLinuxCommand(ctx *context.Context, linCmd *linuxCommnd) *CommandRunner {
+func (c *CommandRunner) runLinuxCommand(linCmd *linuxCommnd) *CommandRunner {
+	// ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	// defer cancel()
 	return nil
+}
+
+func (c *CommandRunner) setOutput(out *CommandOutPut) {
+	c.CommandOutPut = out
+}
+
+func (f FailedExecutionCommand) Error() string {
+	return fmt.Sprintf("failed execute command: %v", f.err)
 }
 
 func newWindowsCommand(c *Command) *windowsCommnd {
@@ -104,13 +136,17 @@ func newLinuxCommand(c *Command) *linuxCommnd {
 	return nil
 }
 
-func (c *CommandRunner) setOutput(stdOut, Stderr *bytes.Buffer) {
-	out := &CommandOutPut{
-		StdOut: stdOut,
-		StdErr: Stderr,
-	}
+func NewCommandOutPut(stdOut, stderr *bytes.Buffer) *CommandOutPut {
+	stdt := new(string)
+	stdrr := new(string)
 
-	c.CommandOutPut = out
+	*stdt = stdOut.String()
+	*stdrr = stderr.String()
+
+	return &CommandOutPut{
+		StdOut: stdt,
+		StdErr: stdrr,
+	}
 }
 
 func fatalError(e error) {
