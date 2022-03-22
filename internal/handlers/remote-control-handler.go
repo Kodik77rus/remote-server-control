@@ -78,8 +78,6 @@ func ExecuteRemoteCommand(w http.ResponseWriter, r *http.Request) {
 
 	outPut := runner.Run()
 
-	fmt.Printf("%+v", *outPut.CommandOutPut)
-
 	sendRespone(w, outPut, http.StatusOK)
 }
 
@@ -119,8 +117,9 @@ func commandParser(b *requestBody) *runner.Command {
 			Name:  command.name,
 			Flags: command.flags,
 		}
+	default:
+		return nil
 	}
-	return nil
 }
 
 func linuxCommandParser(b *requestBody) *linuxCommnd {
@@ -139,9 +138,11 @@ func sendRespone(w http.ResponseWriter, r *runner.CommandRunner, httpStatusCode 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatusCode)
 
-	fmt.Printf("%+v", *r.CommandOutPut.StdOut)
-	resp := make(map[string]string)
-	resp["message"] = string(*r.CommandOutPut.StdOut)
+	resp := make(map[string]map[string]string)
+	resp["message"] = map[string]string{
+		"stdout": (r.CommandOutPut.StdOut).String(),
+		"stderr": (r.CommandOutPut.StdErr).String(),
+	}
 
 	jsonResp, _ := json.Marshal(resp)
 	w.Write(jsonResp)

@@ -3,7 +3,6 @@ package runner
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"os/exec"
@@ -13,9 +12,11 @@ import (
 type CommandRunner struct {
 	Command       *Command
 	CommandOutPut *CommandOutPut
-	err           error
+
+	osType string
+	// err    error
 }
-type d struct{}
+
 type Command struct {
 	Name  string
 	Flags []string
@@ -23,39 +24,74 @@ type Command struct {
 }
 
 type CommandOutPut struct {
-	StdOut string
-	StdErr string
+	StdOut *bytes.Buffer
+	StdErr *bytes.Buffer
 }
 
-func New() *CommandRunner {
-	return &CommandRunner{}
+func New(c *Command, os string) *CommandRunner {
+
+	return &CommandRunner{
+		Command: c,
+		osType:  os,
+	}
 }
 
-func (c *CommandRunner) Run() {
-
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+func (c *CommandRunner) Run() *CommandRunner {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "cmd")
+	switch c.osType {
+	case "windows":
+		return c.runWindowsCommand(&ctx)
+	case "linux":
+		return c.runLinuxCommand(&ctx)
+	default:
+		return nil
+	}
+}
+
+func (c *CommandRunner) runWindowsCommand(ctx *context.Context) *CommandRunner {
+	cmd := exec.CommandContext(*ctx, "powershell")
 
 	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		fmt.Print("gjhgg")
-		log.Fatalln(err)
-	}
+	fatalError(err)
 
 	go func() {
 		defer stdin.Close()
-		_, err := io.WriteString(stdin, "ls")
-		if err != nil {
-			log.Fatalln(err)
-		}
+		_, err := io.WriteString(stdin, c.Command.Name)
+		fatalError(err)
 	}()
 
-	out, err := cmd.CombinedOutput()
-	if err != nil {
+	var stdOut bytes.Buffer
+	var stdErr bytes.Buffer
+
+	cmd.Stdout = &stdOut
+	cmd.Stderr = &stdErr
+
+	if err := cmd.Run(); err != nil {
 		log.Print(err)
 	}
 
-	fmt.Print(bytes.NewBuffer(out).String())
+	return c.setOutput(&stdOut, &stdErr)
+}
+
+func (c *CommandRunner) runLinuxCommand(ctx *context.Context) *CommandRunner {
+
+	return nil
+}
+
+func (c *CommandRunner) setOutput(stdOut, Stderr *bytes.Buffer) *CommandRunner {
+	out := &CommandOutPut{
+		StdOut: stdOut,
+		StdErr: Stderr,
+	}
+
+	c.CommandOutPut = out
+	return c
+}
+
+func fatalError(e error) {
+	if e != nil {
+		log.Fatalln(e)
+	}
 }
