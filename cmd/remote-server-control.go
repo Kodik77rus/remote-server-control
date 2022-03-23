@@ -17,6 +17,8 @@ func init() {
 }
 
 func main() {
+	flag.Parse()
+
 	//load base server config
 	config := server.NewConfig(certPath)
 
