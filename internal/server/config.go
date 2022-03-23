@@ -11,7 +11,7 @@ const (
 	_certificate = "certificate.pem"
 	_publicKey   = "key.pem"
 	_port        = ":8443"
-	_certFolder  = "../configs/certificate/"
+	_certFolder  = "configs/certificate/"
 )
 
 //Server config

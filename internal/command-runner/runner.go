@@ -94,8 +94,7 @@ func (c *CommandRunner) run(i interface{}) *CommandRunner {
 
 	go func() {
 		defer stdin.Close()
-		_, err := io.WriteString(stdin, c.Command.StdIn)
-		fatalError(err)
+		io.WriteString(stdin, c.Command.StdIn)
 	}()
 
 	var stdOut bytes.Buffer
