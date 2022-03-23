@@ -72,10 +72,6 @@ func (c *CommandRunner) Run() *CommandRunner {
 	}
 }
 
-func (c *CommandRunner) setRunner(runner *exec.Cmd) {
-	c.runner = runner
-}
-
 func (c *CommandRunner) run(i interface{}) *CommandRunner {
 	ctx, cancel := context.WithTimeout(context.Background(), _timeLimit)
 	defer cancel()
@@ -123,6 +119,10 @@ func (c *CommandRunner) run(i interface{}) *CommandRunner {
 	c.setOutput(cmdOutPut)
 
 	return c
+}
+
+func (c *CommandRunner) setRunner(runner *exec.Cmd) {
+	c.runner = runner
 }
 
 func (c *CommandRunner) setOutput(out *CommandOutPut) {
