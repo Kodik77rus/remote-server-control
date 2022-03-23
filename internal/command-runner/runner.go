@@ -148,15 +148,15 @@ func newLinuxCommand(c *Command) *linuxCommnd {
 }
 
 func NewCommandOutPut(stdOut, stderr *bytes.Buffer) *CommandOutPut {
-	stdt := new(string)
-	stdrr := new(string)
+	var stdt string
+	var stdrr string
 
-	*stdt = stdOut.String()
-	*stdrr = stderr.String()
+	stdt = stdOut.String()
+	stdrr = stderr.String()
 
 	return &CommandOutPut{
-		StdOut: stdt,
-		StdErr: stdrr,
+		StdOut: &stdt,
+		StdErr: &stdrr,
 	}
 }
 
