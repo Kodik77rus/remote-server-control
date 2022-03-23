@@ -3,7 +3,6 @@ package server
 import (
 	"crypto/tls"
 	"log"
-	"os"
 	"path/filepath"
 )
 
@@ -11,7 +10,6 @@ const (
 	_certificate = "certificate.pem"
 	_publicKey   = "key.pem"
 	_port        = ":8443"
-	_certFolder  = "../configs/certificate/"
 )
 
 //Server config
@@ -21,8 +19,8 @@ type Config struct {
 }
 
 //Server config constructor
-func NewConfig() *Config {
-	cnfg, err := loadCertificate()
+func NewConfig(certPath string) *Config {
+	cnfg, err := loadCertificate(certPath)
 	checkFatalError(err)
 
 	return &Config{
@@ -32,17 +30,10 @@ func NewConfig() *Config {
 }
 
 //load Ssl certificate
-func loadCertificate() (*tls.Config, error) {
-	dirname, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
-	p := filepath.FromSlash(_certFolder)
-
+func loadCertificate(certPaht string) (*tls.Config, error) {
 	cert, err := tls.LoadX509KeyPair(
-		filepath.Join(dirname, p, _certificate),
-		filepath.Join(dirname, p, _publicKey),
+		filepath.Join(certPaht, _certificate),
+		filepath.Join(certPaht, _publicKey),
 	)
 
 	if err != nil {

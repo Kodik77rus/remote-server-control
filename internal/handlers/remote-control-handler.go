@@ -35,7 +35,6 @@ type requestBody struct {
 
 //excute os command
 func ExecuteRemoteCommand(w http.ResponseWriter, r *http.Request) {
-	// log.Printf("%+v", r) // logger create middleware
 	if r.Method != http.MethodPost {
 		errorResponse(w, http.ErrBodyNotAllowed, http.StatusMethodNotAllowed)
 		return

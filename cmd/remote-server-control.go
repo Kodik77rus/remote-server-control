@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -9,10 +10,15 @@ import (
 	"remote-server-control/internal/server"
 )
 
-func main() {
+var certPath string
 
+func init() {
+	flag.StringVar(&certPath, "path", "configs/certificate", "path to sll certificate folder")
+}
+
+func main() {
 	//load base server config
-	config := server.NewConfig()
+	config := server.NewConfig(certPath)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -35,7 +41,7 @@ func main() {
 	fatalError(s.Start())
 }
 
-//user  work dir
+//user work dir
 func setWorkDir() {
 	dir, err := os.UserHomeDir()
 	fatalError(err)
