@@ -23,6 +23,7 @@ type CommandRunner struct {
 	Command       *Command
 	CommandOutPut *CommandOutPut
 
+	runner      *exec.Cmd
 	OsType      string
 	RunnerError error
 }
@@ -34,8 +35,9 @@ type Command struct {
 }
 
 type linuxCommnd struct {
-	name string
-	Args []string
+	name  string
+	args  []string
+	stdIn string
 }
 
 type windowsCommnd struct {
@@ -55,45 +57,56 @@ func New(c *Command, os string) *CommandRunner {
 	return &CommandRunner{
 		Command: c,
 		OsType:  os,
+		runner:  new(exec.Cmd),
 	}
 }
 
 func (c *CommandRunner) Run() *CommandRunner {
-
 	switch c.OsType {
 	case "windows":
-		return c.runWindowsCommand(newWindowsCommand(c.Command))
+		return c.run(newWindowsCommand(c.Command))
 	case "linux":
-		return c.runLinuxCommand(newLinuxCommand(c.Command))
+		return c.run(newLinuxCommand(c.Command))
 	default:
 		return &CommandRunner{RunnerError: errUnsupportedOsType}
 	}
 }
 
-func (c *CommandRunner) runWindowsCommand(winCmd *windowsCommnd) *CommandRunner {
+func (c *CommandRunner) setRunner(runner *exec.Cmd) {
+	c.runner = runner
+}
+
+func (c *CommandRunner) run(i interface{}) *CommandRunner {
 	ctx, cancel := context.WithTimeout(context.Background(), _timeLimit)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "powershell")
+	switch i := i.(type) {
+	case *windowsCommnd:
+		cmd := exec.CommandContext(ctx, "powershell")
+		c.setRunner(cmd)
+	case *linuxCommnd:
+		cmd := exec.CommandContext(ctx, i.name, i.args...)
+		c.setRunner(cmd)
+	}
 
-	stdin, err := cmd.StdinPipe()
+	stdin, err := c.runner.StdinPipe()
 	fatalError(err)
 
 	go func() {
 		defer stdin.Close()
-		_, err := io.WriteString(stdin, winCmd.stdIn)
+		_, err := io.WriteString(stdin, c.Command.StdIn)
 		fatalError(err)
 	}()
 
 	var stdOut bytes.Buffer
 	var stdErr bytes.Buffer
 
-	cmd.Stdout = &stdOut
-	cmd.Stderr = &stdErr
+	c.runner.Stdout = &stdOut
+	c.runner.Stderr = &stdErr
 
-	log.Printf("Start execute command: %s", winCmd.stdIn)
+	log.Printf("Start execute command: %+v", c.Command)
 
-	if err := cmd.Run(); err != nil {
+	if err := c.runner.Run(); err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			log.Print(errExecutionTimeLimit.Error())
 			return &CommandRunner{RunnerError: errExecutionTimeLimit}
@@ -112,12 +125,6 @@ func (c *CommandRunner) runWindowsCommand(winCmd *windowsCommnd) *CommandRunner 
 	return c
 }
 
-func (c *CommandRunner) runLinuxCommand(linCmd *linuxCommnd) *CommandRunner {
-	// ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	// defer cancel()
-	return nil
-}
-
 func (c *CommandRunner) setOutput(out *CommandOutPut) {
 	c.CommandOutPut = out
 }
@@ -133,7 +140,11 @@ func newWindowsCommand(c *Command) *windowsCommnd {
 }
 
 func newLinuxCommand(c *Command) *linuxCommnd {
-	return nil
+	return &linuxCommnd{
+		name:  c.Name,
+		args:  c.Args,
+		stdIn: c.StdIn,
+	}
 }
 
 func NewCommandOutPut(stdOut, stderr *bytes.Buffer) *CommandOutPut {
