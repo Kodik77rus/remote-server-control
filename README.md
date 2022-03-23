@@ -15,8 +15,8 @@
 >Пытался добиться идеальной работы на windows, но так, как у меня стоит пакет с русским языком, у меня полетела кодировка, пытался парсить в другие кодировки, у меня не получилось, но на английском пакете, по идее, всё нормально работает.
 
 При написании данного сервера старался  придерживаться следующих ресурсов:
-`https://github.com/sau00/uber-go-guide-ru/blob/master/style.md`</br>
-`https://github.com/golang-standards/project-layout`
+```https://github.com/sau00/uber-go-guide-ru/blob/master/style.md```</br>
+```https://github.com/golang-standards/project-layout```
 
 # Запуск
 
